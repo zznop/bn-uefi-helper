@@ -146,7 +146,7 @@ class UEFIHelper(BackgroundTaskThread):
             return
 
         self.bv.define_user_data_var(instr.dest.src.constant, instr.src.var.type)
-        print(f'Applied type to global assigment: {hex(instr.dest.src.constant)}')
+        print(f'Found global assignment - offset:0x{hex(instr.dest.src.constant)} type:{instr.src.var.type}')
 
     def _set_global_variables(self):
         """On entry, UEFI modules usually set global variables for EFI_BOOT_SERVICES, EFI_RUNTIME_SERIVCES, and
