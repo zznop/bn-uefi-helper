@@ -14,7 +14,7 @@ class UEFIHelper(BackgroundTaskThread):
     """Class for analyzing UEFI firmware to automate GUID annotation, segment fixup, type imports, and more
     """
 
-    def __init__(self, bv):
+    def __init__(self, bv: BinaryView):
         BackgroundTaskThread.__init__(self, '', False)
         self.bv = bv
         self.br = BinaryReader(self.bv)
@@ -72,7 +72,7 @@ class UEFIHelper(BackgroundTaskThread):
 
         return guid_bytes
 
-    def _apply_guid_name_if_data(self, name, address):
+    def _apply_guid_name_if_data(self, name: str, address: int):
         """Check if there is a function at the address. If not, then apply the EFI_GUID type and name it
 
         :param name: Name/symbol to apply to the GUID
@@ -89,7 +89,6 @@ class UEFIHelper(BackgroundTaskThread):
         self.bv.define_user_symbol(Symbol(SymbolType.FunctionSymbol, address, 'g'+name))
         t = self.bv.parse_type_string("EFI_GUID")
         self.bv.define_user_data_var(address, t[0])
-
 
     def _find_known_guids(self):
         """Search for known GUIDs and apply names to matches not within a function
@@ -135,14 +134,13 @@ class UEFIHelper(BackgroundTaskThread):
             return
 
         _type = instr.src.var.type
-        type_name = str(_type.tokens[0])
-        if type_name == 'EFI_HANDLE':
+        if len(_type.tokens) == 1 and str(_type.tokens[0]) == 'EFI_HANDLE':
             self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gImageHandle'))
-        elif type_name == 'EFI_BOOT_SERVICES':
+        elif len(_type.tokens) > 2 and str(_type.tokens[2]) == 'EFI_BOOT_SERVICES':
             self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gBootServices'))
-        elif type_name == 'EFI_RUNTIME_SERVICES':
+        elif len(_type.tokens) > 2 and str(_type.tokens[2]) == 'EFI_RUNTIME_SERVICES':
             self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gRuntimeServices'))
-        elif type_name == 'EFI_SYSTEM_TABLE':
+        elif len(_type.tokens) > 2 and str(_type.tokens[2]) == 'EFI_SYSTEM_TABLE':
             self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gSystemTable'))
         else:
             return
