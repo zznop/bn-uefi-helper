@@ -1,33 +1,36 @@
+"""
+Binary Ninja plugin that aids in analysis of UEFI PEI and DXE modules
+"""
+
 import os
 import csv
 import glob
 import uuid
-from binaryninja import (PluginCommand, BackgroundTaskThread, SegmentFlag, SectionSemantics,
-                         BinaryReader, Symbol, SymbolType)
+from binaryninja import (PluginCommand, BackgroundTaskThread, SegmentFlag, SectionSemantics, BinaryReader, Symbol,
+                         SymbolType, HighLevelILOperation, BinaryView)
+from binaryninja.highlevelil import HighLevelILInstruction
 
 class UEFIHelper(BackgroundTaskThread):
     """Class for analyzing UEFI firmware to automate GUID annotation, segment fixup, type imports, and more
     """
 
     def __init__(self, bv):
-        BackgroundTaskThread.__init__(self, 'Running UEFI helper...', False)
+        BackgroundTaskThread.__init__(self, '', False)
         self.bv = bv
         self.br = BinaryReader(self.bv)
         self.dirname = os.path.dirname(os.path.abspath(__file__))
         self.guids = self._load_guids()
 
-    def _fix_text_segment(self):
+    def _fix_segments(self):
         """UEFI modules run during boot, without page protections. Everything is RWX despite that the PE is built with
-        the segments as RX. It needs to be RWX so calls through global function pointers are displayed properly.
+        the segments not being writable. It needs to be RWX so calls through global function pointers are displayed
+        properly.
         """
 
         for seg in self.bv.segments:
-            if not seg.executable:
-                continue
-
             # Make segment RWX
             self.bv.add_user_segment(seg.start, seg.data_length, seg.data_offset, seg.data_length,
-                SegmentFlag.SegmentWritable|SegmentFlag.SegmentReadable|SegmentFlag.SegmentExecutable)
+                                     SegmentFlag.SegmentWritable|SegmentFlag.SegmentReadable|SegmentFlag.SegmentExecutable)
 
             # Make section semantics ReadWriteDataSectionSemantics
             for section in self.bv.get_sections_at(seg.start):
@@ -65,7 +68,7 @@ class UEFIHelper(BackgroundTaskThread):
         # Convert to bytes for faster lookup
         guid_bytes = dict()
         for guid, name in guids.items():
-            guid_bytes[name] = uuid.UUID(guid).bytes_le 
+            guid_bytes[name] = uuid.UUID(guid).bytes_le
 
         return guid_bytes
 
@@ -82,7 +85,7 @@ class UEFIHelper(BackgroundTaskThread):
         if self.bv.get_functions_at(address) != []:
             print(f'There is code at {address}, not applying GUID type and name')
             return
-        
+
         self.bv.define_user_symbol(Symbol(SymbolType.FunctionSymbol, address, 'g'+name))
         t = self.bv.parse_type_string("EFI_GUID")
         self.bv.define_user_data_var(address, t[0])
@@ -111,16 +114,66 @@ class UEFIHelper(BackgroundTaskThread):
                 if found_name:
                     self._apply_guid_name_if_data(found_name, i)
 
+    def _set_if_uefi_core_type(self, instr: HighLevelILInstruction):
+        """Using HLIL, scrutinize the instruction to determine if it's a move of a local variable to a global variable.
+        If it is, check if the source operand type is a UEFI core type and apply the type to the destination global
+        variable.
+
+        :param instr: High level IL instruction object
+        """
+
+        if instr.operation != HighLevelILOperation.HLIL_ASSIGN:
+            return
+
+        if instr.dest.operation != HighLevelILOperation.HLIL_DEREF:
+            return
+
+        if instr.dest.src.operation != HighLevelILOperation.HLIL_CONST_PTR:
+            return
+
+        if instr.src.operation != HighLevelILOperation.HLIL_VAR:
+            return
+
+        _type = instr.src.var.type
+        type_name = str(_type.tokens[0])
+        if type_name == 'EFI_HANDLE':
+            self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gImageHandle'))
+        elif type_name == 'EFI_BOOT_SERVICES':
+            self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gBootServices'))
+        elif type_name == 'EFI_RUNTIME_SERVICES':
+            self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gRuntimeServices'))
+        elif type_name == 'EFI_SYSTEM_TABLE':
+            self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gSystemTable'))
+        else:
+            return
+
+        self.bv.define_user_data_var(instr.dest.src.constant, instr.src.var.type)
+        print(f'Applied type to global assigment: {hex(instr.dest.src.constant)}')
+
+    def _set_global_variables(self):
+        """On entry, UEFI modules usually set global variables for EFI_BOOT_SERVICES, EFI_RUNTIME_SERIVCES, and
+        EFI_SYSTEM_TABLE. This function attempts to identify these assignments and apply types.
+        """
+
+        for func in self.bv.functions:
+            for block in func.high_level_il:
+                for instr in block:
+                    self._set_if_uefi_core_type(instr)
+
     def run(self):
         """Run the task in the background
         """
 
-        self._fix_text_segment()
+        self.progress = "UEFI Helper: Fixing up segments, applying types, and searching for known GUIDs ..."
+        self._fix_segments()
         self._import_types_from_headers()
         self._set_entry_point_prototype()
         self._find_known_guids()
+        self.progress = "UEFI Helper: searching for global assignments for UEFI core services ..."
+        self._set_global_variables()
+        print('UEFI Helper completed successfully!')
 
-def run_uefi_helper(bv):
+def run_uefi_helper(bv: BinaryView):
     """Run UEFI helper utilities in the background
     """
 
