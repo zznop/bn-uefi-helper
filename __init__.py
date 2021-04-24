@@ -86,7 +86,7 @@ class UEFIHelper(BackgroundTaskThread):
             print(f'There is code at {address}, not applying GUID type and name')
             return
 
-        self.bv.define_user_symbol(Symbol(SymbolType.FunctionSymbol, address, 'g'+name))
+        self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, address, 'g'+name))
         t = self.bv.parse_type_string("EFI_GUID")
         self.bv.define_user_data_var(address, t[0])
 
