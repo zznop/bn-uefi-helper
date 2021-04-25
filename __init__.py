@@ -9,6 +9,7 @@ import uuid
 from binaryninja import (PluginCommand, BackgroundTaskThread, SegmentFlag, SectionSemantics, BinaryReader, Symbol,
                          SymbolType, HighLevelILOperation, BinaryView)
 from binaryninja.highlevelil import HighLevelILInstruction
+from binaryninja.types import (Type, FunctionParameter)
 
 class UEFIHelper(BackgroundTaskThread):
     """Class for analyzing UEFI firmware to automate GUID annotation, segment fixup, type imports, and more
@@ -137,21 +138,70 @@ class UEFIHelper(BackgroundTaskThread):
         if len(_type.tokens) == 1 and str(_type.tokens[0]) == 'EFI_HANDLE':
             self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gImageHandle'))
         elif len(_type.tokens) > 2 and str(_type.tokens[2]) == 'EFI_BOOT_SERVICES':
-            self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gBootServices'))
+            self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gBS'))
         elif len(_type.tokens) > 2 and str(_type.tokens[2]) == 'EFI_RUNTIME_SERVICES':
-            self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gRuntimeServices'))
+            self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gRS'))
         elif len(_type.tokens) > 2 and str(_type.tokens[2]) == 'EFI_SYSTEM_TABLE':
-            self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gSystemTable'))
+            self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gST'))
         else:
             return
 
         self.bv.define_user_data_var(instr.dest.src.constant, instr.src.var.type)
         print(f'Found global assignment - offset:0x{hex(instr.dest.src.constant)} type:{instr.src.var.type}')
 
+    def _check_and_prop_types_on_call(self, instr: HighLevelILInstruction):
+        """Most UEFI modules don't assign globals in the entry function and instead call a initialization routine and
+        pass the system table to it where global assignments are made. This function ensures that the types are applied
+        to the initialization function params so that we can catch global assignments outside of the module entry
+
+        :param instr: High level IL instruction object
+        """
+
+        if instr.operation not in [HighLevelILOperation.HLIL_TAILCALL, HighLevelILOperation.HLIL_CALL]:
+            return
+
+        if instr.dest.operation != HighLevelILOperation.HLIL_CONST_PTR:
+            return
+
+        argv_is_passed = False
+        for arg in instr.params:
+            if 'ImageHandle' in str(arg) or 'SystemTable' in str(arg):
+                argv_is_passed = True
+                break
+
+        if not argv_is_passed:
+            return
+
+        func = self.bv.get_function_at(instr.dest.constant)
+        old = func.function_type
+        call_args = instr.params
+        new_params = []
+        for arg, param in zip(call_args, old.parameters):
+            if hasattr(arg, 'var'):
+                new_type = arg.var.type
+            else:
+                new_type = param.type
+            new_type.confidence = 256
+            new_params.append(FunctionParameter(new_type, param.name))
+
+        # TODO: this is a hack to account for odd behavior. func.function_type should be able to set directly to
+        # Type.Function(...). However, during testing this isn't the case. I am only able to get it to work if I
+        # set function_type to a string and update analysis.
+        gross_hack = str(
+            Type.function(old.return_value, new_params, old.calling_convention, old.has_variable_arguments, old.stack_adjustment)
+        ).replace('(', '{}('.format(func.name))
+        func.function_type = gross_hack
+        self.bv.update_analysis_and_wait()
+
     def _set_global_variables(self):
         """On entry, UEFI modules usually set global variables for EFI_BOOT_SERVICES, EFI_RUNTIME_SERIVCES, and
         EFI_SYSTEM_TABLE. This function attempts to identify these assignments and apply types.
         """
+
+        func = self.bv.get_function_at(self.bv.entry_point)
+        for block in func.high_level_il:
+            for instr in block:
+                self._check_and_prop_types_on_call(instr)
 
         for func in self.bv.functions:
             for block in func.high_level_il:
