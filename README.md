@@ -11,6 +11,7 @@ Helper plugin for analyzing UEFI firmware. This plugin contains the following fe
 * Locate known protocol GUIDs and assign the GUID type and a symbol
 * Locate global assigments in entry and initialization functions and assign types
    * `EFI_SYSTEM_TABLE`, `EFI_RUNTIME_SERVICES`, `EFI_BOOT_SERVICES`, etc...
+* Loader for Terse Executables
 
 ![demo bn-uefi-helper](screen.gif)
 
