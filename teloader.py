@@ -1,8 +1,10 @@
 """BinaryView for UEFI Terse Executables
 """
 
-from binaryninja import BinaryView, Architecture, platform, SegmentFlag, SectionSemantics, Symbol, SymbolType
+import glob
+import os
 import struct
+from binaryninja import BinaryView, platform, SegmentFlag, SectionSemantics, Symbol, SymbolType
 
 TERSE_IMAGE_HEADER_SIZE = 40
 SECTION_HEADER_SIZE = 40
@@ -26,12 +28,15 @@ class TerseExecutableView(BinaryView):
         :return: True if the binary is a TE, otherwise False
         """
 
-        if data[0:2].decode('utf-8') == 'VZ':
-            return True
+        if len(data) < TERSE_IMAGE_HEADER_SIZE:
+            return False
 
-        return False
+        if data[0:2].decode('utf-8', 'replace') != 'VZ':
+            return False
 
-    def set_platform(self, machine_type: int):
+        return True
+
+    def _set_platform(self, machine_type: int):
         """Set platform/architecture from machine type
 
         :param machine_type: Machine type from TE header
@@ -44,7 +49,7 @@ class TerseExecutableView(BinaryView):
         elif machine_type == -21916:
             self.platform = platform.Platform['windows-aarch64']
 
-    def create_segments(self, image_base: int, num_of_sections: int):
+    def _create_segments(self, image_base: int, num_of_sections: int):
         """There's really only one segment in a TE and it's RWX. However, we set the header to read only jsut to make
         sure it isn't disassembled as code.
 
@@ -58,7 +63,7 @@ class TerseExecutableView(BinaryView):
         self.add_auto_segment(image_base+headers_size, code_region_size, headers_size, code_region_size,
                               SegmentFlag.SegmentReadable|SegmentFlag.SegmentWritable|SegmentFlag.SegmentExecutable)
 
-    def create_sections(self, image_base: int, num_of_sections: int):
+    def _create_sections(self, image_base: int, num_of_sections: int):
         """Create sections
 
         :param image_base: Virtual base address
@@ -70,8 +75,6 @@ class TerseExecutableView(BinaryView):
             name = self.raw[base:base+8].decode('utf-8')
             virtual_size = struct.unpack('<I', self.raw[base+8:base+12])[0]
             virtual_addr = struct.unpack('<I', self.raw[base+12:base+16])[0]
-            raw_data_size = struct.unpack('<I', self.raw[base+16:base+20])[0]
-            raw_data_ptr = struct.unpack('<I', self.raw[base+20:base+24])[0]
 
             # UEFI helper will change the section semantics to ReadWriteDataSectionSemantics, but in order for linear
             # sweep to run over our sections we need the semantics to be ReadOnlyCodeSectionSemantics (for now)
@@ -79,7 +82,7 @@ class TerseExecutableView(BinaryView):
                                   SectionSemantics.ReadOnlyCodeSectionSemantics)
             base += SECTION_HEADER_SIZE
 
-    def apply_header_types(self, image_base: int, num_of_sections: int):
+    def _apply_header_types(self, image_base: int, num_of_sections: int):
         """Import and apply the TE header and section header types
 
         :param image_base: Virtual base address
@@ -130,23 +133,47 @@ class TerseExecutableView(BinaryView):
             self.define_user_data_var(image_base+i, section_header)
             self.define_user_symbol(Symbol(SymbolType.DataSymbol, image_base+i, 'gSectionHdr{}'.format(i-40)))
 
+    def _import_types_from_headers(self):
+        """Parse EDKII types from header files
+        """
+
+        dirname = os.path.dirname(os.path.abspath(__file__))
+        hdrs_path = os.path.join(dirname, 'headers')
+        headers = glob.glob(os.path.join(hdrs_path, '*.h'))
+        for hdr in headers:
+            _types = self.platform.parse_types_from_source_file(hdr)
+            for name, _type in _types.types.items():
+                self.define_user_type(name, _type)
+
+    def _set_entry_point_prototype(self, addr):
+        """Apply correct prototype to the module entry point
+
+        :param addr: Address of the entry point
+        """
+
+        self.add_entry_point(addr)
+        _start = self.get_function_at(addr)
+        _start.function_type = "EFI_STATUS ModuleEntryPoint(EFI_PEI_FILE_HANDLE FileHandle, EFI_PEI_SERVICES **PeiServices)"
+
     def init(self):
         """Assign the platform, create segments, create sections, and set the entrypoint
         """
 
         machine = struct.unpack('<H', self.raw[2:4])[0]
-        self.set_platform(machine)
+        self._set_platform(machine)
 
         stripped_size = struct.unpack('<H', self.raw[6:8])[0]
         header_ofs = stripped_size - TERSE_IMAGE_HEADER_SIZE
         image_base = struct.unpack('<Q', self.raw[16:24])[0]
         num_of_sections = ord(self.raw[4])
-        self.create_segments(image_base+header_ofs, num_of_sections)
-        self.create_sections(image_base, num_of_sections)
 
-        self.apply_header_types(image_base+header_ofs, num_of_sections)
-        entry = struct.unpack('<I', self.raw[8:12])[0]
-        self.add_entry_point(image_base+entry)
+        self._create_segments(image_base+header_ofs, num_of_sections)
+        self._create_sections(image_base, num_of_sections)
+        self._apply_header_types(image_base+header_ofs, num_of_sections)
+
+        self._import_types_from_headers()
+        entry_addr = struct.unpack('<I', self.raw[8:12])[0] + image_base
+        self._set_entry_point_prototype(entry_addr)
         return True
 
     def perform_is_executable(self) -> bool:

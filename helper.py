@@ -53,7 +53,8 @@ class UEFIHelper(BackgroundTaskThread):
         """
 
         _start = self.bv.get_function_at(self.bv.entry_point)
-        _start.function_type = "EFI_STATUS ModuleEntryPoint(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)"
+        if self.bv.view_type != 'TE':
+            _start.function_type = "EFI_STATUS ModuleEntryPoint(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)"
 
     def _load_guids(self):
         """Read known GUIDs from CSV and convert string GUIDs to bytes
@@ -136,13 +137,17 @@ class UEFIHelper(BackgroundTaskThread):
 
         _type = instr.src.var.type
         if len(_type.tokens) == 1 and str(_type.tokens[0]) == 'EFI_HANDLE':
-            self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gImageHandle'))
+            self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gHandle'))
         elif len(_type.tokens) > 2 and str(_type.tokens[2]) == 'EFI_BOOT_SERVICES':
             self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gBS'))
         elif len(_type.tokens) > 2 and str(_type.tokens[2]) == 'EFI_RUNTIME_SERVICES':
             self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gRS'))
         elif len(_type.tokens) > 2 and str(_type.tokens[2]) == 'EFI_SYSTEM_TABLE':
             self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gST'))
+        elif len(_type.tokens) == 1 and str(_type.tokens[0]) == 'EFI_PEI_FILE_HANDLE':
+            self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gHandle'))
+        elif len(_type.tokens) > 2 and str(_type.tokens[2]) == 'EFI_PEI_SERVICES':
+            self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gPeiServices'))
         else:
             return
 
@@ -165,7 +170,7 @@ class UEFIHelper(BackgroundTaskThread):
 
         argv_is_passed = False
         for arg in instr.params:
-            if 'ImageHandle' in str(arg) or 'SystemTable' in str(arg):
+            if 'ImageHandle' in str(arg) or 'SystemTable' or 'FileHandle' or 'PeiServices' in str(arg):
                 argv_is_passed = True
                 break
 
@@ -190,8 +195,11 @@ class UEFIHelper(BackgroundTaskThread):
         gross_hack = str(
             Type.function(old.return_value, new_params, old.calling_convention, old.has_variable_arguments, old.stack_adjustment)
         ).replace('(', '{}('.format(func.name))
-        func.function_type = gross_hack
-        self.bv.update_analysis_and_wait()
+        try:
+            func.function_type = gross_hack
+            self.bv.update_analysis_and_wait()
+        except SyntaxError:
+            pass # BN can't parse int48_t and other types despite that it uses it. Ran into this from a sidt instruction
 
     def _set_global_variables(self):
         """On entry, UEFI modules usually set global variables for EFI_BOOT_SERVICES, EFI_RUNTIME_SERIVCES, and
@@ -223,6 +231,8 @@ class UEFIHelper(BackgroundTaskThread):
 
 def run_uefi_helper(bv: BinaryView):
     """Run UEFI helper utilities in the background
+
+    :param bv: BinaryView
     """
 
     task = UEFIHelper(bv)
