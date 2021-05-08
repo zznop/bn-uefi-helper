@@ -170,7 +170,7 @@ class UEFIHelper(BackgroundTaskThread):
 
         argv_is_passed = False
         for arg in instr.params:
-            if 'ImageHandle' in str(arg) or 'SystemTable' or 'FileHandle' or 'PeiServices' in str(arg):
+            if 'ImageHandle' in str(arg) or 'SystemTable' in str(arg) or 'FileHandle' in str(arg) or 'PeiServices' in str(arg):
                 argv_is_passed = True
                 break
 
