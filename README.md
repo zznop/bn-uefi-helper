@@ -1,4 +1,4 @@
-# bn-uefi-helper
+# bn-uefi-helper ![Python Lint](https://github.com/zznop/bn-uefi-helper/workflows/pylint/badge.svg)
 
 ## Description
 

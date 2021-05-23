@@ -140,7 +140,10 @@ disable=print-statement,
         exception-escape,
         comprehension-escape,
         invalid-name,
-        import-error
+        import-error,
+        fixme,
+        too-few-public-methods,
+        attribute-defined-outside-init,
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
@@ -432,7 +435,7 @@ indent-after-paren=4
 indent-string='    '
 
 # Maximum number of characters on a single line.
-max-line-length=100
+max-line-length=120
 
 # Maximum number of lines in a module.
 max-module-lines=1000
