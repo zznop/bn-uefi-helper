@@ -85,7 +85,7 @@ class UEFIHelper(BackgroundTaskThread):
         :param address: Address of the GUID
         """
 
-        print(f'Found {name} at 0x{hex(address)} ({uuid.UUID(bytes_le=self.guids[name])})')
+        print(f'Found {name} at {hex(address)} ({uuid.UUID(bytes_le=self.guids[name])})')
 
         # Just to avoid a unlikely false positive and screwing up disassembly
         if self.bv.get_functions_at(address) != []:
@@ -164,7 +164,7 @@ class UEFIHelper(BackgroundTaskThread):
             return
 
         self.bv.define_user_data_var(instr.dest.src.constant, instr.src.var.type)
-        print(f'Found global assignment - offset:0x{hex(instr.dest.src.constant)} type:{instr.src.var.type}')
+        print(f'Found global assignment - offset:{hex(instr.dest.src.constant)} type:{instr.src.var.type}')
 
     def _check_and_prop_types_on_call(self, instr: HighLevelILInstruction):
         """Most UEFI modules don't assign globals in the entry function and instead call a initialization routine and
@@ -229,109 +229,49 @@ class UEFIHelper(BackgroundTaskThread):
                 for instr in block:
                     self._set_if_uefi_core_type(instr)
 
-    def _read_guid(self, addr: int) -> bytes:
-        """Read GUID from the specified address
+    def _name_proto_from_guid(self, guid_addr: int, var_addr: int):
+        """Read the GUID, look it up in guids.csv, and derive the var name from the GUID name
 
-        :param address: Address of GUID
-        :return: GUID bytes
+        :param guid_addr: Address of GUID
+        :param var_addr: Address to create the symbol
         """
 
-        self.br.seek(addr)
-        data = self.br.read(16)
-        if len(data) != 16:
-            return None
+        self.br.seek(guid_addr)
+        guid = self.br.read(16)
+        if len(guid) != 16:
+            return
 
-        return data
-
-    def _guid_csv_derive_and_assign_name(self, name: str, address: int):
-        """From the GUID name in guids.csv, derive the variable name and assign it
-
-        :param name: GUID name from guids.csv
-        :param address: Address to create the symbol
-        """
+        name = self._check_guid_and_get_name(guid)
+        if not name:
+            return
 
         if name.endswith('Guid'):
             name = name.replace('Guid', '')
-        self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, address, name))
+        print(f'Found {name} at {hex(var_addr)}')
+        self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, var_addr, name))
 
-    def _name_locate_protocol_var(self, instr: HighLevelILInstruction):
-        """Set the variable name and by analyzing the call to gBS->LocateProtocol
-
-        :param instr: HLIL instruction
-        """
-
-        if len(instr.params) < 3:
-            return
-
-        # Check if arg0 is a global
-        if instr.params[0].operation != HighLevelILOperation.HLIL_CONST_PTR:
-            return
-
-        symbol = self.bv.get_symbol_at(instr.params[0].constant)
-        if symbol is None:
-            return
-
-        guid = self._read_guid(instr.params[0].constant)
-        if not guid:
-            return
-
-        name = self._check_guid_and_get_name(guid)
-        if name is None:
-            return
-
-        # Apply a symbol with the name derived from the GUID name
-        if instr.params[2].operation == HighLevelILOperation.HLIL_CONST_PTR:
-            self._guid_csv_derive_and_assign_name(name, instr.params[2].constant)
-
-    def _name_install_multiple_protocol_interfaces_var(self, instr: HighLevelILInstruction):
-        """Set the output variable name by analyzing the call to gBS->InstallMultipleProtocolInterfaces
+    def _name_protocol_var(self, instr: HighLevelILInstruction, guid_idx: int, proto_idx: int):
+        """Set the global protocol variable name by analyzing the call to gBS->LocateProtocol,
+        gBS->InstallMultipleProtocolInterfaces, or gBS->InstallProtocol
 
         :param instr: HLIL instruction
+        :param guid_idx: Param index for the GUID pointer
+        :param proto_idx: Param index for the protocol variable pointer
         """
 
-        if len(instr.params) < 4:
+        # Get the largest param index and make sure it doesn't exceed the instruction param count
+        param_indices = [guid_idx, proto_idx]
+        param_indices.sort()
+        if len(instr.params) < param_indices[-1]:
             return
 
-        if instr.params[1].operation != HighLevelILOperation.HLIL_CONST_PTR:
+        if instr.params[guid_idx].operation != HighLevelILOperation.HLIL_CONST_PTR:
             return
 
-        if instr.params[2].operation != HighLevelILOperation.HLIL_CONST_PTR:
+        if instr.params[proto_idx].operation != HighLevelILOperation.HLIL_CONST_PTR:
             return
 
-        guid = self._read_guid(instr.params[1].constant)
-        if not guid:
-            return
-
-        name = self._check_guid_and_get_name(guid)
-        if name is None:
-            return
-
-        self._guid_csv_derive_and_assign_name(name, instr.params[2].constant)
-
-    def _name_install_protocol_interface_var(self, instr: HighLevelILInstruction):
-        """Set the interface name by analyzing the call to gBS->InstallProtocolInterface
-
-        :param instr: HLIL instruction
-        """
-
-        if len(instr.params) < 4:
-            return
-
-        if instr.params[1].operation != HighLevelILOperation.HLIL_CONST_PTR:
-            return
-
-        if instr.params[3].operation != HighLevelILOperation.HLIL_CONST_PTR:
-            return
-
-        guid = self._read_guid(instr.params[1].constant)
-        if not guid:
-            return
-
-        name = self._check_guid_and_get_name(guid)
-        if name is None:
-            return
-
-        self._guid_csv_derive_and_assign_name(name, instr.params[3].constant)
+        self._name_proto_from_guid(instr.params[guid_idx].constant, instr.params[proto_idx].constant)
 
     def _name_protocol_vars(self):
         """Iterate xref's for EFI_BOOT_SERVICES global variables, find calls to gBS->LocateProtocol and
@@ -354,11 +294,11 @@ class UEFIHelper(BackgroundTaskThread):
 
                         # Could also use the structure offset or member index here
                         if str(instr.dest).endswith('->LocateProtocol'):
-                            self._name_locate_protocol_var(instr)
+                            self._name_protocol_var(instr, 0, 2)
                         elif str(instr.dest).endswith('->InstallMultipleProtocolInterfaces'):
-                            self._name_install_multiple_protocol_interfaces_var(instr)
+                            self._name_protocol_var(instr, 1, 2)
                         elif str(instr.dest).endswith('->InstallProtocolInterface'):
-                            self._name_install_protocol_interface_var(instr)
+                            self._name_protocol_var(instr, 1, 3)
 
     def run(self):
         """Run the task in the background
@@ -372,6 +312,7 @@ class UEFIHelper(BackgroundTaskThread):
         self.progress = "UEFI Helper: searching for global assignments for UEFI core services ..."
         self._set_global_variables()
         self.bv.update_analysis_and_wait()
+        self.progress = "UEFI Helper: searching for global protocols ..."
         self._name_protocol_vars()
         print('UEFI Helper completed successfully!')
 
