@@ -1,0 +1,15 @@
+name: pylint
+on: [push, pull_request]
+
+jobs:
+  pylint:
+    name: Python Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install pylint
+        run: pip install pylint
+
+      - name: Run pylint
+        run: pylint --reports=y --rcfile .pylintrc *.py

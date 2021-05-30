@@ -21,7 +21,7 @@ class TerseExecutableView(BinaryView):
         self.raw = data
 
     @classmethod
-    def is_valid_for_data(self, data: bytes) -> bool:
+    def is_valid_for_data(cls, data: bytes) -> bool:
         """Determine if the loaded binary is a Terse Executable
 
         :param data: Raw binary data
@@ -153,7 +153,9 @@ class TerseExecutableView(BinaryView):
 
         self.add_entry_point(addr)
         _start = self.get_function_at(addr)
-        _start.function_type = "EFI_STATUS ModuleEntryPoint(EFI_PEI_FILE_HANDLE FileHandle, EFI_PEI_SERVICES **PeiServices)"
+        _start.function_type = (
+            'EFI_STATUS ModuleEntryPoint(EFI_PEI_FILE_HANDLE FileHandle, EFI_PEI_SERVICES **PeiServices)'
+        )
 
     def init(self):
         """Assign the platform, create segments, create sections, and set the entrypoint
@@ -176,6 +178,7 @@ class TerseExecutableView(BinaryView):
         self._set_entry_point_prototype(entry_addr)
         return True
 
+    # pylint: disable=no-self-use
     def perform_is_executable(self) -> bool:
         """Terse Executables are executable, return true
 
@@ -192,4 +195,3 @@ class TerseExecutableView(BinaryView):
         image_base = struct.unpack('<Q', self.raw[16:24])[0]
         entry = struct.unpack('<I', self.raw[8:12])[0]
         return image_base+entry
-
