@@ -26,7 +26,7 @@ typedef UINTN EFI_TPL;
 typedef unsigned int uint;
 
 /* 2025 */
-struct EFI_TABLE_HEADER
+struct EFI_TABLE_HEADER __packed
 {
   UINT64 Signature;
   UINT32 Revision;
@@ -438,7 +438,7 @@ struct EFI_DEVICE_PATH_PROTOCOL
 };
 
 /* 4443 */
-struct EFI_OPEN_PROTOCOL_INFORMATION_ENTRY
+struct EFI_OPEN_PROTOCOL_INFORMATION_ENTRY __packed
 {
   EFI_HANDLE AgentHandle;
   EFI_HANDLE ControllerHandle;
