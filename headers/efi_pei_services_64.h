@@ -210,7 +210,7 @@ struct _EFI_PEI_NOTIFY_DESCRIPTOR {
     EFI_PEIM_NOTIFY_ENTRY_POINT Notify;
 };
 
-struct EFI_FV_FILE_INFO2 {
+struct EFI_FV_FILE_INFO2 __packed {
     EFI_GUID FileName;
     EFI_FV_FILETYPE FileType;
     EFI_FV_FILE_ATTRIBUTES FileAttributes;
@@ -219,7 +219,7 @@ struct EFI_FV_FILE_INFO2 {
     UINT32 AuthenticationStatus;
 };
 
-struct EFI_TABLE_HEADER {
+struct EFI_TABLE_HEADER __packed {
     UINT64 Signature;
     UINT32 Revision;
     UINT32 HeaderSize;
