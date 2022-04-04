@@ -75,7 +75,12 @@ typedef EFI_STATUS (__fastcall *EFI_SET_VIRTUAL_ADDRESS_MAP)(UINTN, UINTN, UINT3
 typedef EFI_STATUS (__fastcall *EFI_CONVERT_POINTER)(UINTN, void **);
 
 /* 1710 */
-typedef GUID EFI_GUID;
+struct EFI_GUID __packed {
+  UINT32  Data1;
+  UINT16  Data2;
+  UINT16  Data3;
+  UINT8   Data4[8];
+};
 
 /* 4384 */
 typedef EFI_STATUS (__fastcall *EFI_GET_VARIABLE)(CHAR16 *, EFI_GUID *, UINT32 *, UINTN *, void *);
