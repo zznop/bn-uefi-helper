@@ -39,7 +39,7 @@ struct EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL;
 struct EFI_SIMPLE_TEXT_INPUT_PROTOCOL;
 
 /* 4451 */
-struct EFI_SYSTEM_TABLE
+struct EFI_SYSTEM_TABLE __packed
 {
   struct EFI_TABLE_HEADER Hdr;
   CHAR16 *FirmwareVendor;
@@ -75,7 +75,12 @@ typedef EFI_STATUS (__fastcall *EFI_SET_VIRTUAL_ADDRESS_MAP)(UINTN, UINTN, UINT3
 typedef EFI_STATUS (__fastcall *EFI_CONVERT_POINTER)(UINTN, void **);
 
 /* 1710 */
-typedef GUID EFI_GUID;
+struct EFI_GUID __packed {
+  UINT32  Data1;
+  UINT16  Data2;
+  UINT16  Data3;
+  UINT8   Data4[8];
+};
 
 /* 4384 */
 typedef EFI_STATUS (__fastcall *EFI_GET_VARIABLE)(CHAR16 *, EFI_GUID *, UINT32 *, UINTN *, void *);
@@ -114,7 +119,7 @@ typedef EFI_STATUS (__fastcall *EFI_QUERY_CAPSULE_CAPABILITIES)(struct EFI_CAPSU
 typedef EFI_STATUS (__fastcall *EFI_QUERY_VARIABLE_INFO)(UINT32, UINT64 *, UINT64 *, UINT64 *);
 
 /* 4450 */
-struct EFI_RUNTIME_SERVICES
+struct EFI_RUNTIME_SERVICES __packed
 {
   struct EFI_TABLE_HEADER Hdr;
   EFI_GET_TIME GetTime;
@@ -330,7 +335,7 @@ typedef EFI_STATUS (* EFI_INSTALL_MULTIPLE_PROTOCOL_INTERFACES)(EFI_HANDLE *, ..
 typedef EFI_STATUS (* EFI_UNINSTALL_MULTIPLE_PROTOCOL_INTERFACES)(EFI_HANDLE, ...);
 
 /* 4442 */
-struct EFI_BOOT_SERVICES
+struct EFI_BOOT_SERVICES __packed
 {
   struct EFI_TABLE_HEADER Hdr;
   EFI_RAISE_TPL RaiseTPL;
@@ -380,14 +385,14 @@ struct EFI_BOOT_SERVICES
 };
 
 /* 4447 */
-struct EFI_CONFIGURATION_TABLE
+struct EFI_CONFIGURATION_TABLE __packed
 {
   EFI_GUID VendorGuid;
   void *VendorTable;
 };
 
 /* 2796 */
-struct EFI_TIME
+struct EFI_TIME __packed
 {
   UINT16 Year;
   UINT8 Month;
@@ -403,7 +408,7 @@ struct EFI_TIME
 };
 
 /* 4449 */
-struct EFI_TIME_CAPABILITIES
+struct EFI_TIME_CAPABILITIES __packed
 {
   UINT32 Resolution;
   UINT32 Accuracy;
@@ -411,7 +416,7 @@ struct EFI_TIME_CAPABILITIES
 };
 
 /* 4444 */
-struct EFI_MEMORY_DESCRIPTOR
+struct EFI_MEMORY_DESCRIPTOR __packed
 {
   UINT32 Type;
   EFI_PHYSICAL_ADDRESS PhysicalStart;
@@ -421,7 +426,7 @@ struct EFI_MEMORY_DESCRIPTOR
 };
 
 /* 4446 */
-struct EFI_CAPSULE_HEADER
+struct EFI_CAPSULE_HEADER __packed
 {
   EFI_GUID CapsuleGuid;
   UINT32 HeaderSize;
@@ -430,7 +435,7 @@ struct EFI_CAPSULE_HEADER
 };
 
 /* 1773 */
-struct EFI_DEVICE_PATH_PROTOCOL
+struct EFI_DEVICE_PATH_PROTOCOL __packed
 {
   UINT8 Type;
   UINT8 SubType;
