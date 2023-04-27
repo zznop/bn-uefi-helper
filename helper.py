@@ -58,7 +58,7 @@ class UEFIHelper(BackgroundTaskThread):
 
         _start = self.bv.get_function_at(self.bv.entry_point)
         if self.bv.view_type != 'TE':
-            _start.function_type = "EFI_STATUS ModuleEntryPoint(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)"
+            _start.type = "EFI_STATUS ModuleEntryPoint(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)"
 
     def _load_guids(self):
         """Read known GUIDs from CSV and convert string GUIDs to bytes
@@ -190,7 +190,7 @@ class UEFIHelper(BackgroundTaskThread):
             return
 
         func = self.bv.get_function_at(instr.dest.constant)
-        old = func.function_type
+        old = func.type
         call_args = instr.params
         new_params = []
         for arg, param in zip(call_args, old.parameters):
@@ -201,15 +201,15 @@ class UEFIHelper(BackgroundTaskThread):
             new_type.confidence = 256
             new_params.append(FunctionParameter(new_type, param.name))
 
-        # TODO: this is a hack to account for odd behavior. func.function_type should be able to set directly to
+        # TODO: this is a hack to account for odd behavior. func.type should be able to set directly to
         # Type.Function(...). However, during testing this isn't the case. I am only able to get it to work if I
-        # set function_type to a string and update analysis.
+        # set type to a string and update analysis.
         gross_hack = str(
             Type.function(old.return_value, new_params, old.calling_convention,
                           old.has_variable_arguments, old.stack_adjustment)
         ).replace('(', '{}('.format(func.name))
         try:
-            func.function_type = gross_hack
+            func.type = gross_hack
             self.bv.update_analysis_and_wait()
         except SyntaxError:
             pass # BN can't parse int48_t and other types despite that it uses it. Ran into this from a sidt instruction

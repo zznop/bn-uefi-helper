@@ -28,7 +28,7 @@ class TerseExecutableView(BinaryView):
         :return: True if the binary is a TE, otherwise False
         """
 
-        if len(data) < TERSE_IMAGE_HEADER_SIZE:
+        if data.length < TERSE_IMAGE_HEADER_SIZE:
             return False
 
         if data[0:2].decode('utf-8', 'replace') != 'VZ':
