@@ -19,6 +19,7 @@ class TerseExecutableView(BinaryView):
     def __init__(self, data: bytes):
         BinaryView.__init__(self, parent_view=data, file_metadata=data.file)
         self.raw = data
+        self.platform = None
 
     @classmethod
     def is_valid_for_data(cls, data: bytes) -> bool:
@@ -178,7 +179,6 @@ class TerseExecutableView(BinaryView):
         self._set_entry_point_prototype(entry_addr)
         return True
 
-    # pylint: disable=no-self-use
     def perform_is_executable(self) -> bool:
         """Terse Executables are executable, return true
 

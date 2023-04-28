@@ -22,6 +22,7 @@ class UEFIHelper(BackgroundTaskThread):
         self.dirname = os.path.dirname(os.path.abspath(__file__))
         self.guids = self._load_guids()
         self.gbs_assignments = []
+        self.progress = ''
 
     def _fix_segments(self):
         """UEFI modules run during boot, without page protections. Everything is RWX despite that the PE is built with
@@ -67,12 +68,12 @@ class UEFIHelper(BackgroundTaskThread):
         """
 
         guids_path = os.path.join(self.dirname, 'guids.csv')
-        with open(guids_path) as f:
+        with open(guids_path, encoding='utf-8') as f:
             reader = csv.reader(f, skipinitialspace=True)
             guids = dict(reader)
 
         # Convert to bytes for faster lookup
-        guid_bytes = dict()
+        guid_bytes = {}
         for guid, name in guids.items():
             guid_bytes[name] = uuid.UUID(guid).bytes_le
 
