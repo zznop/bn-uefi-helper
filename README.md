@@ -1,5 +1,7 @@
 # bn-uefi-helper ![Python Lint](https://github.com/zznop/bn-uefi-helper/workflows/pylint/badge.svg)
 
+**ATTENTION: This plugin has been deprecated. See** [EFI Resolver](https://github.com/Vector35/efi-resolver.git)
+
 ## Description
 
 Helper plugin for analyzing UEFI firmware. This plugin contains the following features:
