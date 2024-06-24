@@ -221,7 +221,7 @@ typedef enum enum_868 EFI_PEI_CPU_IO_PPI_WIDTH;
 
 typedef EFI_STATUS (* EFI_PEI_CPU_IO_PPI_IO_MEM)(EFI_PEI_SERVICES * *, EFI_PEI_CPU_IO_PPI *, EFI_PEI_CPU_IO_PPI_WIDTH, UINT64, UINTN, void *);
 
-struct _EFI_PEI_NOTIFY_DESCRIPTOR {
+struct _EFI_PEI_NOTIFY_DESCRIPTOR __packed {
     UINTN Flags;
     EFI_GUID * Guid;
     EFI_PEIM_NOTIFY_ENTRY_POINT Notify;
@@ -244,12 +244,12 @@ struct EFI_TABLE_HEADER __packed {
     UINT32 Reserved;
 };
 
-struct EFI_PEI_CPU_IO_PPI_ACCESS {
+struct EFI_PEI_CPU_IO_PPI_ACCESS __packed {
     EFI_PEI_CPU_IO_PPI_IO_MEM Read;
     EFI_PEI_CPU_IO_PPI_IO_MEM Write;
 };
 
-struct EFI_PEI_CPU_IO_PPI {
+struct EFI_PEI_CPU_IO_PPI __packed {
     struct EFI_PEI_CPU_IO_PPI_ACCESS Mem;
     struct EFI_PEI_CPU_IO_PPI_ACCESS Io;
     EFI_PEI_CPU_IO_PPI_IO_READ8 IoRead8;
@@ -270,7 +270,7 @@ struct EFI_PEI_CPU_IO_PPI {
     EFI_PEI_CPU_IO_PPI_MEM_WRITE64 MemWrite64;
 };
 
-struct EFI_FV_INFO {
+struct EFI_FV_INFO __packed {
     EFI_FVB_ATTRIBUTES_2 FvAttributes;
     EFI_GUID FvFormat;
     EFI_GUID FvName;
@@ -278,20 +278,20 @@ struct EFI_FV_INFO {
     UINT64 FvSize;
 };
 
-struct EFI_PEI_PCI_CFG2_PPI {
+struct EFI_PEI_PCI_CFG2_PPI __packed {
     EFI_PEI_PCI_CFG2_PPI_IO Read;
     EFI_PEI_PCI_CFG2_PPI_IO Write;
     EFI_PEI_PCI_CFG2_PPI_RW Modify;
     UINT16 Segment;
 };
 
-struct EFI_PEI_PPI_DESCRIPTOR {
+struct EFI_PEI_PPI_DESCRIPTOR __packed {
     UINTN Flags;
     EFI_GUID * Guid;
     void * Ppi;
 };
 
-struct EFI_FV_FILE_INFO {
+struct EFI_FV_FILE_INFO __packed {
     EFI_GUID FileName;
     EFI_FV_FILETYPE FileType;
     EFI_FV_FILE_ATTRIBUTES FileAttributes;
@@ -299,7 +299,7 @@ struct EFI_FV_FILE_INFO {
     UINT32 BufferSize;
 };
 
-struct _EFI_PEI_SERVICES {
+struct _EFI_PEI_SERVICES __packed {
     struct EFI_TABLE_HEADER Hdr;
     EFI_PEI_INSTALL_PPI InstallPpi;
     EFI_PEI_REINSTALL_PPI ReInstallPpi;
@@ -331,7 +331,7 @@ struct _EFI_PEI_SERVICES {
     EFI_PEI_FREE_PAGES FreePages;
 };
 
-struct EFI_STATUS_CODE_DATA {
+struct EFI_STATUS_CODE_DATA __packed {
     UINT16 HeaderSize;
     UINT16 Size;
     EFI_GUID Type;
